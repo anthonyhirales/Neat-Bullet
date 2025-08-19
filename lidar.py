@@ -5,8 +5,8 @@ import numpy as np
 import math
 
 """
-Como funcionara la clase?
-We basically create several Lidar objects, one per car applying the setup, and update functions as fundamental
+How would the class work?
+We created several Lidar objects, setting up independently for each vehicle, and update functions as fundamental
 - setup: stablish the start and end positions and orientations per ray.
 - update: we used the rayTestBatch function to update the lidars, re-calculating each postion, orientation and hit fraction.
 - get data: this function retrieves the data for each step and fowards to its assigned NN in the car.py file. 
@@ -97,10 +97,11 @@ class Lidar():
             lidar_readings.append(hit_fraction)
 
         # Debug
-        print(f"🔹 LiDAR readings for car {self.car}: {lidar_readings}")
+        print(f"LiDAR readings for car {self.car}: {lidar_readings}")
 
         return np.array(lidar_readings) if lidar_readings else None  
     
+
 
 
 
