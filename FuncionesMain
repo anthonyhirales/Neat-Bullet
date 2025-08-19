@@ -1,0 +1,143 @@
+from Neaat import Connection, Genome, InnovationTracker, Node
+import time
+import copy
+import random
+def offset(p1, p2, v1, v2, tracker):
+    hijo = Genome(p1.input_size, p1.output_size, tracker)
+    dom, sec = (p2, p1) if v1 < v2 else (p1, p2)
+    inherited_nodes = {n.id for n in dom.nodes}
+    hijo.nodes = [Node(n.id, n.type) for n in dom.nodes]
+
+    # coppy connections 
+    for i in range(10):
+        dom_conn = dom.connections[i]
+        hijo.connections[i].weight = dom_conn.weight
+
+    # Directory of the parents  
+    dom_innov = {c.innovation: c for c in dom.connections}
+    sec_innov = {c.innovation: c for c in sec.connections}
+    all_innov = sorted(set(dom_innov) | set(sec_innov))
+    inov_heredadas = set(conn.innovation for conn in hijo.connections)
+
+    def tipo(node_id):
+        if node_id < hijo.input_size:
+            return "input"
+        elif node_id == hijo.input_size:
+            return "output"
+        else:
+            return "hidden"
+
+    for innov in all_innov:
+        if innov < 10 or innov in inov_heredadas:
+            continue
+
+        if innov in dom_innov and innov in sec_innov:
+            chosen = random.choice([dom_innov[innov], sec_innov[innov]])
+        elif innov in dom_innov:
+            chosen = dom_innov[innov]
+        else:
+            continue
+
+        tipo_in = tipo(chosen.in_node)
+        tipo_out = tipo(chosen.out_node)
+        if tipo_out == "input" or tipo_in == "output" or (tipo_in == "input" and tipo_out == "input"):
+            continue
+
+        # assure that everything is requested 
+        if chosen.in_node not in inherited_nodes:
+            hijo.nodes.append(Node(chosen.in_node, tipo(chosen.in_node)))
+            inherited_nodes.add(chosen.in_node)
+
+        if chosen.out_node not in inherited_nodes:
+            hijo.nodes.append(Node(chosen.out_node, tipo(chosen.out_node)))
+            inherited_nodes.add(chosen.out_node)
+
+        hijo.connections.append(Connection(
+            chosen.in_node,
+            chosen.out_node,
+            chosen.weight,
+            chosen.enabled,
+            chosen.innovation
+        ))
+        inov_heredadas.add(innov)
+
+    # disable other connections 
+    for conn in hijo.connections:
+        if not conn.enabled:
+            continue
+        in_node = conn.in_node
+        out_node = conn.out_node
+
+        # Evaluate if there is any middle node between the the pso septs
+        for mid_node in inherited_nodes:
+            if mid_node == in_node or mid_node == out_node:
+                continue
+            has_in = any(c.in_node == in_node and c.out_node == mid_node and c.enabled for c in hijo.connections)
+            has_out = any(c.in_node == mid_node and c.out_node == out_node and c.enabled for c in hijo.connections)
+            if has_in and has_out:
+                print(f"Conexión {in_node} → {out_node} desactivada (reemplazada por {in_node}→{mid_node}→{out_node})")
+                conn.enabled = False
+                break
+
+    return hijo
+
+
+def imprimir(diccionario):
+    for nombre, genoma in diccionario.items():
+        print("Genoma", nombre)
+        for conex in genoma.connections:
+            print(f"{conex.in_node} → {conex.out_node} | Weight: {conex.weight:.3f} | Enabled: {conex.enabled} | Innovation: {conex.innovation}")
+
+def reordenar(fitness_dict, genome_dict):
+    dictf = {}
+    for car_name in fitness_dict:
+        if car_name in genome_dict:
+            dictf[car_name] = genome_dict[car_name]
+
+
+def Genomas(ncarros, tracker): # the aim of this funciton is to mutate at the begining
+    genomas = {}
+    for i in range(ncarros):
+        car_name = f"car{i}"
+        gen = Genome(15, 1, tracker)
+        gen.mutar() 
+        gen.AN() 
+        genomas[car_name] = gen
+    return genomas
+
+
+def imprimir_uno(uno):
+    for conex in uno.connections:
+            print(f"{conex.in_node} → {conex.out_node} | Weight: {conex.weight:.3f} | Enabled: {conex.enabled} | Innovation: {conex.innovation}")
+
+def Reproducir(genomes_dict, fitness_dict, tracker, tam_poblacion, elitismo=1):
+    # Sorting the fitness scores (best to worst)
+    g_ord = sorted(fitness_dict.items(), key=lambda x: x[1], reverse=True)
+    nueva_gen = {}
+
+    # Elitism 
+    elite_nombres = [nombre for nombre, _ in g_ord[:elitismo]]
+    for nombre in elite_nombres:
+        nueva_gen[nombre] = copy.deepcopy(genomes_dict[nombre])  # No mutation
+
+    # Obtain the name of the pending 
+    nd = [n for n in genomes_dict.keys() if n not in elite_nombres]
+
+    for nombre in nd:
+        # Select two top parents
+        p1_name, f1 = random.choice(g_ord[:2])
+        p2_name, f2 = random.choice(g_ord[:2])
+        p1 = genomes_dict[p1_name]
+        p2 = genomes_dict[p2_name]
+
+        hijo = offset(p1, p2, f1, f2, tracker)
+
+        # Mutate the children
+        hijo.mutar()
+
+        nueva_gen[nombre] = hijo
+
+    return nueva_gen
+
+
+
